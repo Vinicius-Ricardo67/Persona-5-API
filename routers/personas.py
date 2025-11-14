@@ -161,3 +161,32 @@ def scrape_persona_pages(url: str):
 
     persona_cache[url] = data
     return data
+@router.get("/")
+def get_personas(
+    arcana: Optional[str] = Query(None, description="Filtra por arcana"),
+    min_level: Optional[int] = Query(None, description="Nível mínimo"),
+    max_level: Optional[int] = Query(None, description="Nível máximo"),
+    name: Optional[str] = Query(None, description="Busca por nome"),
+    limit: Optional[int] = Query(0, description="Limite de resultados (0 = sem limite)")
+):
+    """
+    Retorna lista básica de personas (nome, arcana, level, url).
+    Usa cache (1 hora) para a lista inteira.
+    Filtros: arcana, min_level, max_level, name, limit.
+    """
+    personas = fetch_persona_list()
+
+    if arcana:
+        personas = [p for p in personas if p.get("arcana") and p["arcana"].lower() == arcana.lower()]
+    if min_level is not None:
+        personas = [p for p in personas if p.get("level") and p["level"].isdigit() and int(p["level"]) >= min_level]
+    if max_level is not None:
+        personas = [p for p in personas if p.get("level") and p["level"].isdigit() and int(p["level"]) <= max_level]
+    if name:
+        personas = [p for p in personas if name.lower() in p.get("name", "").lower()]
+
+    if limit and limit > 0:
+        personas = personas[:limit]
+
+    return {"count": len(personas), "results": personas}
+
