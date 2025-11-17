@@ -219,4 +219,27 @@ def get_personas(persona_name: str):
 @router.delete("/cache/{persona_name}")
 def clear_persona_cache(persona_name: str):
     """
-    Aqui é onde vai ficar os endpoints pro frontend fazer a limpa do cache dos personas
+    Endpoint para o frontend dizer "limpa o cache desssa persona".
+    Limpa a entrada do cache correspondente á URL da persona.
+    """
+    personas = list_cache.get("personas_list")
+    if personas:
+        for p in personas:
+            if p["name"].lower() == persona_name.lower():
+                url = p.get("url")
+                if url and url in persona_cache:
+                    del persona_cache[url]
+                    return {"message": f"Cache de {persona_name} limpo"}
+                break
+    keys_to_delete = [k for f in list(persona_cache.keys()) if persona_name.lower() in k.lower()]
+    for k in keys_to_delete:
+        del persona_cache[k]
+    if keys_to_delete:
+        return {"message": f"Cache de {persona_name} limpo (matching keys)"}
+    return {"message": f"{persona_name} não estava no cache"}
+
+@router.delete("/cache")
+def clear_all_cache():
+    persona_cache.clear()
+    list_cache.clear()
+    return {"message": "Cache geral limpo"}
