@@ -190,3 +190,33 @@ def get_personas(
 
     return {"count": len(personas), "results": personas}
 
+@router.get("/{persona_name}")
+def get_personas(persona_name: str):
+    """
+    Retorna dados completos de uma persona (scrape da página individual).
+    Usa cache por URL (10 minutos).
+    """
+    personas = fetch_persona_list()
+    matched = None
+    for p in personas:
+        if p["name"].lower() == persona_name.lower():
+            matched = p
+            break
+    if not matched:
+        for p in personas:
+            if persona_name.lower() in p["name"].lower():
+                matched = p
+                break
+    if not matched:
+        raise HTTPException(status_code=404, detail="Persona not found ;( ")
+
+    if not matched.get("url"):
+        raise HTTPException(status_code=500, detail="URL da Persona não encontrada")
+
+    data = scrape_persona_pages(matched["url"])
+    return data
+
+@router.delete("/cache/{persona_name}")
+def clear_persona_cache(persona_name: str):
+    """
+    Aqui é onde vai ficar os endpoints pro frontend fazer a limpa do cache dos personas
