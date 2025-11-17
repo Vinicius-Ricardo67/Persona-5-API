@@ -190,3 +190,56 @@ def get_personas(
 
     return {"count": len(personas), "results": personas}
 
+@router.get("/{persona_name}")
+def get_personas(persona_name: str):
+    """
+    Retorna dados completos de uma persona (scrape da página individual).
+    Usa cache por URL (10 minutos).
+    """
+    personas = fetch_persona_list()
+    matched = None
+    for p in personas:
+        if p["name"].lower() == persona_name.lower():
+            matched = p
+            break
+    if not matched:
+        for p in personas:
+            if persona_name.lower() in p["name"].lower():
+                matched = p
+                break
+    if not matched:
+        raise HTTPException(status_code=404, detail="Persona not found ;( ")
+
+    if not matched.get("url"):
+        raise HTTPException(status_code=500, detail="URL da Persona não encontrada")
+
+    data = scrape_persona_pages(matched["url"])
+    return data
+
+@router.delete("/cache/{persona_name}")
+def clear_persona_cache(persona_name: str):
+    """
+    Endpoint para o frontend dizer "limpa o cache desssa persona".
+    Limpa a entrada do cache correspondente á URL da persona.
+    """
+    personas = list_cache.get("personas_list")
+    if personas:
+        for p in personas:
+            if p["name"].lower() == persona_name.lower():
+                url = p.get("url")
+                if url and url in persona_cache:
+                    del persona_cache[url]
+                    return {"message": f"Cache de {persona_name} limpo"}
+                break
+    keys_to_delete = [k for f in list(persona_cache.keys()) if persona_name.lower() in k.lower()]
+    for k in keys_to_delete:
+        del persona_cache[k]
+    if keys_to_delete:
+        return {"message": f"Cache de {persona_name} limpo (matching keys)"}
+    return {"message": f"{persona_name} não estava no cache"}
+
+@router.delete("/cache")
+def clear_all_cache():
+    persona_cache.clear()
+    list_cache.clear()
+    return {"message": "Cache geral limpo"}
