@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from personas import router as personas_router
 from fastapi.middleware.cors import CORSMiddleware
+from personas import router as personas_router
 
 app = FastAPI(
     title="PersonaAPI (async scraper)",
@@ -20,4 +20,4 @@ app.include_router(personas_router)
 
 @app.get("/")
 def root():
-    return {"message": "PersonaAPI (async) — use /api/v1/personas"}
+    return {"message": "PersonaAPI (async) - use /api/v1/personas"}
