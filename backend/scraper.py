@@ -38,21 +38,22 @@ async def _aget(url: str, client: httpx.AsyncClient):
 
 async def scrape_persona_list():
     async with httpx.AsyncClient(
-        headers = CLIENT_HEADERS,
-        http2 = True,
-        timeout = httpx.Timeout(20, read=25),
-        follow_redirects = True
+        headers=CLIENT_HEADERS,
+        http2=True,
+        timeout=httpx.Timeout(20, read=25),
+        follow_redirects=True
     ) as client:
 
         text = await _aget(LIST_URL, client)
+
         if not text:
-            raise HTTPException(status_code = 502, detail = "Erro ao buscar a wiki (lista)")
+            raise HTTPException(status_code=502, detail="Erro ao buscar a wiki (lista)")
 
     soup = BeautifulSoup(text, "html.parser")
 
     table = soup.find("table", {"class": "wikitable"})
     if not table:
-        raise HTTPException(status_code = 500, detail = "Tabela de personas não encontrada")
+        raise HTTPException(status_code=500, detail="Tabela de personas não encontrada")
 
     rows = table.find_all("tr")[1:]
     personas = []
@@ -87,33 +88,32 @@ async def scrape_persona_list():
 async def scrape_persona_page(url: str):
     async with SEMAPHORE:
         async with httpx.AsyncClient(
-        headers = CLIENT_HEADERS,
-        http2 = True,
-        timeout = httpx.Timeout(20, read=25),
-        follow_redirects = True 
+            headers=CLIENT_HEADERS,
+            http2=True,
+            timeout=httpx.Timeout(20, read=25),
+            follow_redirects=True
         ) as client:
 
             text = await _aget(url, client)
-
             if not text:
-                raise HTTPException(status_code = 502, detail = f"Erro ao buscar a página {url}")
+                raise HTTPException(status_code=502, detail=f"Erro ao buscar a página {url}")
 
     soup = BeautifulSoup(text, "html.parser")
     data = {}
 
-    heading = soup.find("h1", {"id": "firsHeading"})
+    heading = soup.find("h1", {"id": "firstHeading"})
     data["name"] = heading.get_text(strip=True) if heading else None
 
     infobox = soup.find("aside", {"role": "region"})
     if infobox:
         for item in infobox.select("div.pi-item"):
-            label = item.find(h3)
+            label = item.find("h3")
             if not label:
                 continue
 
             key = label.get_text(strip=True).lower()
             value_el = item.find("div", {"class": "pi-data-value"})
-            value = value_el.get_text(" ", strip=True) if value_el else " "
+            value = value_el.get_text(" ", strip=True) if value_el else ""
 
             if "arcana" in key:
                 data["arcana"] = value
@@ -123,7 +123,7 @@ async def scrape_persona_page(url: str):
                 data["inherits"] = value
             elif "item" in key:
                 data["item"] = value
-            
+
         img = infobox.find("img")
         if img and img.get("src"):
             data["image_url"] = img["src"]
@@ -148,7 +148,7 @@ async def scrape_persona_page(url: str):
                         "name": cols[0].get_text(strip=True),
                         "level_learned": cols[1].get_text(strip=True),
                     })
-                break
+            break
 
     if skills:
         data["skills"] = skills
