@@ -4,56 +4,45 @@ from fastapi import HTTPException
 import asyncio
 
 BASE_URL = "https://megamitensei.fandom.com"
-LIST_URL = f"{BASE_URL}/wiki/List_of_Persona_5_Personas"
-
-CLIENT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/119.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Referer": "https://www.google.com/",
-    "DNT": "1",
-    "Connection": "keep-alive",
-}
+API_URL = f"{BASE_URL}/api.php"
 
 MAX_CONCURRENCY = 6
 SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENCY)
 
-async def _aget(url: str, client: httpx.AsyncClient):
+async def _api_parse(page_name: str):
+    params = {
+        "action": "parse",
+        "page": page_name,
+        "format": "json"
+    }
+
     for attempt in range(3):
         try:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                return resp.text
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(API_URL, params=params)
 
-        except Exception:
-            pass
+            if r.status_code == 200:
+                data = r.json()
+                return data["parse"]["text"]["*"]
 
-        await asyncio.sleep(1.2 * (attempt + 1))
+            print(f"Tentativa {attempt+1}: {r.status_code} para {page_name}")
 
-    return None
+        except Exception as e:
+            print("Erro tentativa", attempt+1, ":", e)
+
+        await asyncio.sleep(1.2 * (attempt+1))
+
+    raise HTTPException(status_code=502, detail=f"Erro ao acessar API para {page_name}")
+
+# Lista dos personas
 
 async def scrape_persona_list():
-    async with httpx.AsyncClient(
-        headers=CLIENT_HEADERS,
-        http2=True,
-        timeout=httpx.Timeout(20, read=25),
-        follow_redirects=True
-    ) as client:
-
-        text = await _aget(LIST_URL, client)
-
-        if not text:
-            raise HTTPException(status_code=502, detail="Erro ao buscar a wiki (lista)")
-
-    soup = BeautifulSoup(text, "html.parser")
+    html = await _api_parse("List_of_Persona_5_Personas")
+    soup = BeautifulSoup(html, "html.parser")
 
     table = soup.find("table", {"class": "wikitable"})
     if not table:
-        raise HTTPException(status_code=500, detail="Tabela de personas não encontrada")
+        raise HTTPException(status_code=500, detail="Tabela de Personas não encontrada")
 
     rows = table.find_all("tr")[1:]
     personas = []
@@ -71,49 +60,43 @@ async def scrape_persona_list():
         level = cols[2].get_text(strip=True)
 
         href = a.get("href")
-        url = BASE_URL + href if href else None
+        page_name = href.replace("/wiki/", "") if href else None
 
         personas.append({
             "id": id_counter,
             "name": name,
             "arcana": arcana,
             "level": level,
-            "url": url
+            "page": page_name
         })
 
         id_counter += 1
 
     return personas
 
-async def scrape_persona_page(url: str):
+# Página de uma persona
+
+async def scrape_persona_page(page_name: str):
     async with SEMAPHORE:
-        async with httpx.AsyncClient(
-            headers=CLIENT_HEADERS,
-            http2=True,
-            timeout=httpx.Timeout(20, read=25),
-            follow_redirects=True
-        ) as client:
+        html = await _api_parse(page_name)
 
-            text = await _aget(url, client)
-            if not text:
-                raise HTTPException(status_code=502, detail=f"Erro ao buscar a página {url}")
-
-    soup = BeautifulSoup(text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     data = {}
 
-    heading = soup.find("h1", {"id": "firstHeading"})
-    data["name"] = heading.get_text(strip=True) if heading else None
+    h1 = soup.find("h1")
+    data["name"] = h1.get_text(strip=True) if h1 else page_name
 
-    infobox = soup.find("aside", {"role": "region"})
+    infobox = soup.find("aside")
     if infobox:
         for item in infobox.select("div.pi-item"):
             label = item.find("h3")
-            if not label:
+            value_el = item.find("div", {"class": "pi-data-value"})
+
+            if not label or not value_el:
                 continue
 
             key = label.get_text(strip=True).lower()
-            value_el = item.find("div", {"class": "pi-data-value"})
-            value = value_el.get_text(" ", strip=True) if value_el else ""
+            value = value_el.get_text(" ", strip=True)
 
             if "arcana" in key:
                 data["arcana"] = value
@@ -132,6 +115,7 @@ async def scrape_persona_page(url: str):
     if stats_table:
         headers = [th.get_text(strip=True).lower() for th in stats_table.find_all("th")]
         rows = stats_table.find_all("tr")[1:]
+
         if rows:
             values = [td.get_text(strip=True) for td in rows[0].find_all("td")]
             if len(values) == len(headers):
@@ -139,14 +123,14 @@ async def scrape_persona_page(url: str):
 
     skills = []
     for table in soup.find_all("table", {"class": "wikitable"}):
-        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
+        headers = [h.get_text(strip=True).lower() for h in table.find_all("th")]
         if any("skill" in h for h in headers):
             for r in table.find_all("tr")[1:]:
                 cols = r.find_all("td")
                 if len(cols) >= 2:
                     skills.append({
                         "name": cols[0].get_text(strip=True),
-                        "level_learned": cols[1].get_text(strip=True),
+                        "level_learned": cols[1].get_text(strip=True)
                     })
             break
 
