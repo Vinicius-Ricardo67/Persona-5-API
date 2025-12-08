@@ -1,7 +1,7 @@
 import httpx
+import asyncio
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
-import asyncio
 
 BASE_URL = "https://megamitensei.fandom.com"
 API_URL = f"{BASE_URL}/api.php"
@@ -28,7 +28,7 @@ async def _api_parse(page_name: str):
             print(f"Tentativa {attempt+1}: {r.status_code} para {page_name}")
 
         except Exception as e:
-            print("Erro tentativa", attempt+1, ":", e)
+            print(f"Erro tentativa {attempt+1}:", e)
 
         await asyncio.sleep(1.2 * (attempt+1))
 
@@ -66,13 +66,19 @@ async def scrape_persona_list():
             "id": id_counter,
             "name": name,
             "arcana": arcana,
-            "level": level,
-            "page": page_name
+            "level": int(level) if level.isdigit() else level,
+            "page": page
         })
 
         id_counter += 1
 
     return personas
+
+def _to_int(x):
+    try:
+        return int(x)
+    except:
+        return 0
 
 # Página de uma persona
 
@@ -81,17 +87,43 @@ async def scrape_persona_page(page_name: str):
         html = await _api_parse(page_name)
 
     soup = BeautifulSoup(html, "html.parser")
-    data = {}
+    
+
+    persona = {
+        "id": 0,
+        "name": None,
+        "arcana": None,
+        "level": 0,
+        "description": None,
+        "image": None,
+        "strength": 0,
+        "magic": 0,
+        "endurance": 0,
+        "agility": 0,
+        "luck": 0,
+        "weak": [],
+        "resists": [],
+        "reflects": [],
+        "absorbs": [],
+        "nullifies": [],
+        "dlc": 0,
+        "query": page_name.lower()
+    }
 
     h1 = soup.find("h1")
-    data["name"] = h1.get_text(strip=True) if h1 else page_name
+    if h1:
+        persona["name"] = h1.get_text(strip=True)
 
     infobox = soup.find("aside")
     if infobox:
+        
+        img = infobox.find("img")
+        if img:
+            persona["image"] = img.get("src")
+
         for item in infobox.select("div.pi-item"):
             label = item.find("h3")
             value_el = item.find("div", {"class": "pi-data-value"})
-
             if not label or not value_el:
                 continue
 
@@ -99,48 +131,39 @@ async def scrape_persona_page(page_name: str):
             value = value_el.get_text(" ", strip=True)
 
             if "arcana" in key:
-                data["arcana"] = value
+                persona["arcana"] = value
+
             elif "level" in key:
-                data["level"] = value
-            elif "inherits" in key:
-                data["inherits"] = value
-            elif "item" in key:
-                data["item"] = value
+                persona["level"] = _to_int(value)
 
-        img = infobox.find("img")
-        if img and img.get("src"):
-            data["image_url"] = img["src"]
+    stats_table = soup.find("table", {"class": "elementtable"})
+    if aff_table:
+        headers = [h.get_text(strip=True).lower() for h in aff_table.find_all("th")]
+        cells = aff_table.find_all("tr")[1].find_all("td")
 
-    stats_table = soup.find("table", {"class": "wikitable"})
-    if stats_table:
-        headers = [th.get_text(strip=True).lower() for th in stats_table.find_all("th")]
-        rows = stats_table.find_all("tr")[1:]
+        for h, c in zip(headers, cell):
+            val = c.get_text(strip=True)
+            if not val:
+                continue
 
-        if rows:
-            values = [td.get_text(strip=True) for td in rows[0].find_all("td")]
-            if len(values) == len(headers):
-                data["stats"] = dict(zip(headers, values))
+            if "weak" in h:
+                persona["weak"].append(val)
+            elif "resist" in h:
+                persona["resists"].append(val)
+            elif "reflect" in h:
+                persona["reflects"].append(val)
+            elif "absorb" in h:
+                persona["absorbs"].append(val)
+            elif "null" in h:
+                persona["nullifies"].append(val)
 
-    skills = []
-    for table in soup.find_all("table", {"class": "wikitable"}):
-        headers = [h.get_text(strip=True).lower() for h in table.find_all("th")]
-        if any("skill" in h for h in headers):
-            for r in table.find_all("tr")[1:]:
-                cols = r.find_all("td")
-                if len(cols) >= 2:
-                    skills.append({
-                        "name": cols[0].get_text(strip=True),
-                        "level_learned": cols[1].get_text(strip=True)
-                    })
-            break
-
-    if skills:
-        data["skills"] = skills
-
-    for p in soup.find_all("p"):
+    for p in soup,find_all("p"):
         txt = p.get_text(strip=True)
-        if txt:
-            data["description"] = txt
+        if txt and len(txt) > 40:
+            persona["description"] = txt
             break
 
-    return data
+    if "↓" in persona["name"]:
+        persona["dlc"] = 1
+
+    return persona
