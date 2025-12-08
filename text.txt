@@ -1,0 +1,23 @@
+{
+  "id": 0,
+  "name": "*",
+  "arcana": "*",
+  "level": 0,
+  "description": "*",
+  "image": "*",
+  "strength": 0,
+  "magic": 0,
+  "endurance": 0,
+  "agility": 0,
+  "luck": 0,
+  "weak": [],
+  "resists": [],
+  "reflects": [],
+  "absorbs": [],
+  "nullifies": [],
+  "dlc": 0,
+  "query": "*"
+}
+
+https://megamitensei.fandom.com/api.php?action=parse&page=Arsène&format=json
+https://megamitensei.fandom.com/api.php?action=parse&page=List_of_Persona_5_Personas&format=json
