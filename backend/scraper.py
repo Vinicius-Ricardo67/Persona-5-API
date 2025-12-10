@@ -67,7 +67,7 @@ async def scrape_persona_list():
             "name": name,
             "arcana": arcana,
             "level": int(level) if level.isdigit() else level,
-            "page": page
+            "page": page_name
         })
 
         id_counter += 1
@@ -137,11 +137,11 @@ async def scrape_persona_page(page_name: str):
                 persona["level"] = _to_int(value)
 
     stats_table = soup.find("table", {"class": "elementtable"})
-    if aff_table:
+    if stats_table:
         headers = [h.get_text(strip=True).lower() for h in aff_table.find_all("th")]
         cells = aff_table.find_all("tr")[1].find_all("td")
 
-        for h, c in zip(headers, cell):
+        for h, c in zip(headers, cells):
             val = c.get_text(strip=True)
             if not val:
                 continue
@@ -157,13 +157,14 @@ async def scrape_persona_page(page_name: str):
             elif "null" in h:
                 persona["nullifies"].append(val)
 
-    for p in soup,find_all("p"):
+    for p in soup.find_all("p"):
         txt = p.get_text(strip=True)
         if txt and len(txt) > 40:
             persona["description"] = txt
             break
 
-    if "↓" in persona["name"]:
+    name = persona.get("name") or ""
+    if "↓" in name:
         persona["dlc"] = 1
 
     return persona
