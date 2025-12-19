@@ -70,7 +70,7 @@ async def scrape_persona_page(page_name: str):
         "luck": 0,
         "weak": [],
         "resists": [],
-        "reflect": [],
+        "reflects": [],
         "absorbs": [],
         "nullifies": [],
         "dlc": fallback_mode,
@@ -114,7 +114,7 @@ async def scrape_persona_page(page_name: str):
     if stats_table:
         rows = stats_table.find_all("tr")
         if len(rows) >= 2:
-            headers: [h.get_text(strip=True).lower() for h in rows[0].find_all("th")]
+            headers = [h.get_text(strip=True).lower() for h in rows[0].find_all("th")]
             values = [c.get_text(strip=True) for c in rows[1].find_all("td")]
 
             for h, v in zip(headers, values):
@@ -139,19 +139,19 @@ async def scrape_persona_page(page_name: str):
             headers = [h.get_text(strip=True).lower() for h in rows[0].find_all("th")]
             cells = rows[1].find_all("td")
 
-        for h, c in zip(headers, cells):
-            val = c.get_text(strip=True)
-
-            if "weak" in h:
-                persona["weak"].append(val)
-            elif "resist" in h:
-                persona["resists"].append(val)
-            elif "null" in h:
-                persona["nullifies"].append(val)
-            elif "absorb" in h:
-                persona["absorbs"].append(val)
-            elif "reflect" in h:
-                persona["reflects"].append(val)
+            for h, c in zip(headers, cells):
+                val = c.get_text(strip=True)
+    
+                if "weak" in h:
+                    persona["weak"].append(val)
+                elif "resist" in h:
+                    persona["resists"].append(val)
+                elif "null" in h:
+                    persona["nullifies"].append(val)
+                elif "absorb" in h:
+                    persona["absorbs"].append(val)
+                elif "reflect" in h:
+                    persona["reflects"].append(val)
             
     for p in soup.find_all("p"):
         txt = p.get_text(strip=True)
