@@ -65,6 +65,8 @@ def pick_best_image(infobox):
 
     for img in images:
         src = img.get("src", "")
+        if src.startswith("static"):
+            src = "https://" + src
         alt = img.get("alt", "").lower()
         name = img.get("data-image-name", "").lower()
 
