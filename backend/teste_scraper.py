@@ -1,24 +1,19 @@
-import httpx
 import asyncio
-from bs4 import BeautifulSoup
+from scraper import scrape_persona_basic
 
-URL = "https://megamitensei.fandom.com/api.php?action=parse&page=List_of_Persona_5_Personas&format=json"
 
-async def test():
-    async with httpx.AsyncClient() as c:
-        r = await c.get(URL)
-        print("Status:", r.status_code)
+async def main():
+    persona = input("Digite o nome da Persona: ")
 
-        data = r.json()
-        html = data["parse"]["text"]["*"]
+    try:
+        result = await scrape_persona_basic(persona)
 
-        soup = BeautifulSoup(html, "html.parser")
+        print("\nResultado:")
+        print("Nome:", result["name"])
+        print("Imagem:", result["image"])
 
-        table = soup.find("table")
-        if table:
-            print("Tabela encontrada!")
-            print(str(table)[:2000])
-        else:
-            print("Nenhuma tabela encontrada")
+    except Exception:
+        print("Persona não encontrada.")
 
-asyncio.run(test()) 
+
+asyncio.run(main())
